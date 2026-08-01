@@ -1,6 +1,6 @@
 use base64::Engine;
 use color_eyre::eyre::{Result, WrapErr};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 use serde_json::{Map, Value, json};
 use sha2::Sha256;

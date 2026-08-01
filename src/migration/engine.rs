@@ -920,7 +920,15 @@ fn normalize_legacy_completed_stage(stage: Option<String>) -> Option<String> {
 }
 
 pub(super) fn hash_fingerprint(value: &str) -> String {
-    format!("{:x}", Sha256::digest(value.as_bytes()))
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+
+    let digest = Sha256::digest(value.as_bytes());
+    let mut encoded = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    encoded
 }
 
 pub(super) fn source_fingerprint(source_url: &str, source: &SourceData) -> String {
@@ -1085,6 +1093,22 @@ mod tests {
         let timing = progress_timing(50, 100, Instant::now());
         assert!(timing.contains("rows_per_sec="));
         assert!(timing.contains("eta_secs="));
+    }
+
+    #[test]
+    fn hash_fingerprint_matches_sha256_standard_vector() {
+        assert_eq!(
+            hash_fingerprint("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
+    #[test]
+    fn hash_fingerprint_handles_empty_input() {
+        assert_eq!(
+            hash_fingerprint(""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
     }
 
     #[test]

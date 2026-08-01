@@ -24,19 +24,19 @@ aster_drive_schema_migration = { git = "https://github.com/AsterCommunity/AsterD
 aster_drive_writer = { path = "crates/aster_drive_writer" }
 aster_drive_migration_core = { path = "crates/aster_drive_migration_core" }
 argon2 = "0.5.3"
-aws-sdk-s3 = "1.137.0"
-base64 = "0.22"
+aws-sdk-s3 = "1.140.0"
+base64 = "0.23"
 chrono = { version = "0.4.45", default-features = false }
 clap = "4"
 cloudreve_adapter = { path = "crates/cloudreve_adapter" }
 cloudreve_schema = { path = "crates/cloudreve_schema" }
 color-eyre = "0.6.5"
-hmac = "0.12"
+hmac = "0.13"
 mime_guess = "2"
 sea-orm = { version = "2.0.0", default-features = false }
 serde = "1.0.229"
 serde_json = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 tokio = "1"
 urlencoding = "2"
 url = "2"
@@ -56,7 +56,7 @@ undocumented_unsafe_blocks = "deny"
 
 [package]
 name = "aster_drive_migration"
-version = "0.0.0-alpha.0"
+version = "0.1.0-alpha.1"
 description = "Migration tool for AsterDrive, from other self-hosted drive solutions to AsterDrive."
 authors.workspace = true
 repository.workspace = true
