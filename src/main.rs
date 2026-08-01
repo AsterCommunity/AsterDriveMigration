@@ -97,6 +97,12 @@ struct MigrateArgs {
     verify_local_storage: bool,
     #[arg(long)]
     verify_remote_storage: bool,
+    #[arg(
+        long = "ignore-remote-audit-entity",
+        value_name = "ENTITY_ID",
+        requires = "verify_remote_storage"
+    )]
+    ignored_remote_audit_entities: Vec<i64>,
     #[arg(long, env = "ASTER_DIRECT_LINK_SECRET", hide_env_values = true)]
     direct_link_secret: Option<String>,
     #[arg(long)]
@@ -194,6 +200,9 @@ async fn run_migration(args: MigrateArgs, force_resume: bool) -> Result<()> {
         local_policy_roots: parse_local_policy_roots(args.local_policy_roots)?,
         verify_local_storage: args.verify_local_storage,
         verify_remote_storage: args.verify_remote_storage,
+        ignored_remote_audit_entities: parse_remote_audit_entities(
+            args.ignored_remote_audit_entities,
+        )?,
         direct_link_secret: args.direct_link_secret,
         include_deleted: args.connection.include_deleted,
         allow_non_empty_target: args.allow_non_empty_target,
@@ -206,6 +215,19 @@ async fn run_migration(args: MigrateArgs, force_resume: bool) -> Result<()> {
     })
     .await?;
     emit_report(report_path.as_deref(), &report)
+}
+
+fn parse_remote_audit_entities(values: Vec<i64>) -> Result<std::collections::BTreeSet<i64>> {
+    let mut entities = std::collections::BTreeSet::new();
+    for entity_id in values {
+        if entity_id <= 0 {
+            bail!("--ignore-remote-audit-entity must use a positive entity ID");
+        }
+        if !entities.insert(entity_id) {
+            bail!("remote audit entity {entity_id} was configured more than once");
+        }
+    }
+    Ok(entities)
 }
 
 fn parse_local_policy_roots(
@@ -326,6 +348,10 @@ mod tests {
             "3=/storage",
             "--verify-local-storage",
             "--verify-remote-storage",
+            "--ignore-remote-audit-entity",
+            "949",
+            "--ignore-remote-audit-entity",
+            "950",
             "--allow-non-empty-target",
             "--skip-unsupported-policies",
             "--include-deleted",
@@ -340,6 +366,7 @@ mod tests {
         };
         assert!(migrate.verify_local_storage);
         assert!(migrate.verify_remote_storage);
+        assert_eq!(migrate.ignored_remote_audit_entities, [949, 950]);
         assert!(migrate.allow_non_empty_target);
         assert!(migrate.skip_unsupported_policies);
         assert!(migrate.connection.include_deleted);
@@ -363,6 +390,30 @@ mod tests {
                 "sqlite://target.db",
             ])
             .is_err()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "aster-drive-migration",
+                "migrate",
+                "--source-url",
+                "sqlite://source.db",
+                "--target-url",
+                "sqlite://target.db",
+                "--default-password",
+                "temporary-password",
+                "--ignore-remote-audit-entity",
+                "949",
+            ])
+            .is_err()
+        );
+        assert!(parse_remote_audit_entities(vec![0]).is_err());
+        assert!(parse_remote_audit_entities(vec![949, 949]).is_err());
+        assert_eq!(
+            parse_remote_audit_entities(vec![950, 949])
+                .expect("valid audit entity IDs")
+                .into_iter()
+                .collect::<Vec<_>>(),
+            [949, 950]
         );
         assert!(
             Cli::try_parse_from([

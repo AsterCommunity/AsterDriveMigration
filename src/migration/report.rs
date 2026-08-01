@@ -11,6 +11,7 @@ pub struct MigrationOptions {
     pub local_policy_roots: BTreeMap<i64, String>,
     pub verify_local_storage: bool,
     pub verify_remote_storage: bool,
+    pub ignored_remote_audit_entities: BTreeSet<i64>,
     pub direct_link_secret: Option<String>,
     pub include_deleted: bool,
     pub allow_non_empty_target: bool,

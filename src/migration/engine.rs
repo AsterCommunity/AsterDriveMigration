@@ -149,6 +149,16 @@ fn validate_migration_options(options: &MigrationOptions) -> Result<()> {
     if options.resume && options.dry_run {
         bail!("--resume cannot be combined with --dry-run");
     }
+    if !options.ignored_remote_audit_entities.is_empty() && !options.verify_remote_storage {
+        bail!("--ignore-remote-audit-entity requires --verify-remote-storage");
+    }
+    if options
+        .ignored_remote_audit_entities
+        .iter()
+        .any(|entity_id| *entity_id <= 0)
+    {
+        bail!("--ignore-remote-audit-entity must use a positive entity ID");
+    }
     if let Some(run_id) = options.run_id.as_deref() {
         validate_run_id(run_id)?;
     }
@@ -186,14 +196,15 @@ async fn migrate_validated(
         options.dry_run && options.verify_local_storage,
     )
     .await?;
-    if options.dry_run && options.verify_remote_storage {
-        verify_all_remote_source_objects(&source, &source_data, &options).await?;
-    }
-
     let mut report = source_data.report();
     report.dry_run = options.dry_run;
     report.warnings.extend(source_data.compatibility_warnings());
     report.preflight = preflight;
+    if options.dry_run && options.verify_remote_storage {
+        report
+            .warnings
+            .extend(verify_all_remote_source_objects(&source, &source_data, &options).await?);
+    }
     if options.dry_run {
         report.run_id = options.run_id.clone();
         return Ok(report);
@@ -604,13 +615,19 @@ pub(super) async fn migrate_blobs_batched(
             )?;
         }
         if inputs.options.verify_remote_storage {
-            verify_remote_blob_batch(
+            let warnings = verify_remote_blob_batch(
                 &referenced_entities,
                 inputs.source_data,
                 inputs.options,
                 inputs.context,
+                inputs.run_id,
             )
             .await?;
+            for warning in warnings {
+                if !report.warnings.contains(&warning) {
+                    report.warnings.push(warning);
+                }
+            }
         }
 
         let Some(last_entity_id) = entities.last().map(|entity| entity.id) else {
@@ -820,7 +837,7 @@ pub(super) async fn load_file_batch_data(
 }
 
 pub(super) struct BlobAssociationInfo {
-    reference_counts: HashMap<i64, i64>,
+    pub(super) reference_counts: HashMap<i64, i64>,
 }
 
 pub(super) async fn load_blob_association_info(
@@ -975,6 +992,7 @@ mod tests {
             local_policy_roots: BTreeMap::new(),
             verify_local_storage: false,
             verify_remote_storage: false,
+            ignored_remote_audit_entities: BTreeSet::new(),
             direct_link_secret: Some("1234567890123456".to_string()),
             include_deleted: false,
             allow_non_empty_target: false,
@@ -1034,6 +1052,22 @@ mod tests {
             options.run_id = Some(run_id);
             assert!(validate_migration_options(&options).is_err());
         }
+    }
+
+    #[test]
+    fn migration_option_validation_rejects_invalid_remote_audit_ignores() {
+        let mut options = migration_options();
+        options.ignored_remote_audit_entities.insert(949);
+        assert!(validate_migration_options(&options).is_err());
+
+        options.verify_remote_storage = true;
+        options.ignored_remote_audit_entities.clear();
+        options.ignored_remote_audit_entities.insert(0);
+        assert!(validate_migration_options(&options).is_err());
+
+        options.ignored_remote_audit_entities.clear();
+        options.ignored_remote_audit_entities.insert(949);
+        assert!(validate_migration_options(&options).is_ok());
     }
 
     #[test]
